@@ -89,6 +89,19 @@ run_experiment() {
 
     local run_name="${exp_name}_seed${seed}"
     local ckpt_dir="${CHECKPOINT_DIR}/${run_name}"
+
+    # Skip-if-exists guard. A non-empty checkpoint dir means a prior run
+    # already produced data for this (exp, seed). Re-running would interleave
+    # new ModelCheckpoint top-K files with old ones, corrupting the result
+    # for downstream parsing. Set FORCE=1 to override (e.g., re-run after
+    # cleaning the dir manually).
+    if [[ -d "${ckpt_dir}" ]] && compgen -G "${ckpt_dir}/*.ckpt" > /dev/null; then
+        if [[ -z "${FORCE:-}" ]]; then
+            echo "[SKIP] ${run_name}: ${ckpt_dir} already has checkpoints (set FORCE=1 to override)"
+            return 0
+        fi
+        echo "[FORCE] ${run_name}: overwriting existing checkpoints in ${ckpt_dir}"
+    fi
     mkdir -p "${ckpt_dir}"
 
     echo "=============================================="
