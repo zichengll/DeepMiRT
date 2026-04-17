@@ -1,0 +1,17 @@
+# Baseline: default config under the ablation framework.
+#
+# Purpose: Multi-seed runs at checkpoints/ablation/baseline_seed<N>/
+# parallel to D1_uniform_lr_seed<N> and A1_concat_seed<N>, enabling
+# paired statistics. Inherits default.yaml unchanged — every ablation
+# section field is the framework default.
+#
+# Spec: docs/superpowers/specs/2026-04-17-multiseed-significance-design.md
+_base_: ../default.yaml
+
+ablation:
+  interaction: "cross_attention"
+  pooling: "mean"
+  encoder: "shared"
+  random_init: false
+  classifier: "mlp"
+  uniform_lr: false
