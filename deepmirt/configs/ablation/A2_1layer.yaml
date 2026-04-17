@@ -1,0 +1,5 @@
+# A2a: Cross-Attention with 1 layer (default: 2)
+_base_: ../default.yaml
+
+model:
+  cross_attn_layers: 1

@@ -1,0 +1,10 @@
+# C3: CLS token pooling (use BOS token representation)
+_base_: ../default.yaml
+
+ablation:
+  interaction: "cross_attention"
+  pooling: "cls"
+  encoder: "shared"
+  random_init: false
+  classifier: "mlp"
+  uniform_lr: false

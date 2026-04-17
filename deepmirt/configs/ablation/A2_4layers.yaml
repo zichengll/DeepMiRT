@@ -1,0 +1,5 @@
+# A2b: Cross-Attention with 4 layers (default: 2)
+_base_: ../default.yaml
+
+model:
+  cross_attn_layers: 4

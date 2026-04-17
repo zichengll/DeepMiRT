@@ -1,0 +1,11 @@
+# D1: Uniform learning rate (no differential LR)
+# All parameter groups use the same base learning rate
+_base_: ../default.yaml
+
+ablation:
+  interaction: "cross_attention"
+  pooling: "mean"
+  encoder: "shared"
+  random_init: false
+  classifier: "mlp"
+  uniform_lr: true

@@ -1,0 +1,11 @@
+# B1: Random initialization (no pretraining)
+# Uses RNA-FM architecture but with randomly initialized weights
+_base_: ../default.yaml
+
+ablation:
+  interaction: "cross_attention"
+  pooling: "mean"
+  encoder: "shared"
+  random_init: true
+  classifier: "mlp"
+  uniform_lr: false

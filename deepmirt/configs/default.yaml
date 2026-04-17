@@ -22,8 +22,8 @@ model:
 # ---- Data loading ----
 data:
   data_dir: "deepmirt/data/training"  # Training data directory (contains train.csv, val.csv, test.csv)
-  batch_size: 128             # Batch size (128-256 recommended, reduce to 64 if GPU memory is insufficient)
-  num_workers: 8              # DataLoader worker processes (typically set to 1/4 of CPU cores)
+  batch_size: 512             # Batch size (increased for better GPU utilization on L20 46GB)
+  num_workers: 16             # DataLoader worker processes (increased for 384-core machine)
   pin_memory: true            # Pinned memory (recommended true for GPU training, accelerates CPU->GPU data transfer)
 
 # ---- Training hyperparameters ----
@@ -31,7 +31,7 @@ training:
   lr: 1.0e-4                  # Base learning rate (used for classifier head; backbone is multiplied by 0.01)
   weight_decay: 1.0e-5        # L2 regularization coefficient (prevents overfitting, 1e-5 to 1e-4 range)
   scheduler: "cosine"         # Learning rate scheduler: cosine | onecycle | none
-  max_epochs: 30              # Maximum training epochs (typically 20-50, combined with early stopping)
+  max_epochs: 20              # Maximum training epochs (reduced from 30; most experiments converge by epoch 15-20)
   gradient_clip_val: 1.0      # Gradient clipping threshold (prevents gradient explosion, 1.0 is standard)
   accumulate_grad_batches: 1  # Gradient accumulation steps (set to 2-4 to simulate larger batch if GPU memory is insufficient)
   precision: "16-mixed"       # Mixed precision training (reduces GPU memory, speeds up computation, with negligible precision loss)
@@ -70,6 +70,15 @@ early_stopping:
   monitor: "val_loss"         # Metric to monitor
   patience: 10                # Stop after N consecutive epochs without improvement (progressive unfreezing needs more recovery time)
   mode: "min"                 # min=lower is better
+
+# ---- Ablation study ----
+ablation:
+  interaction: "cross_attention"  # cross_attention | concat | reverse_qk
+  pooling: "mean"                 # mean | max | cls
+  encoder: "shared"               # shared | separate
+  random_init: false              # true = randomly initialize RNA-FM weights (no pretrain)
+  classifier: "mlp"               # mlp | linear
+  uniform_lr: false               # true = use same LR for all parameter groups
 
 # ---- Random seed ----
 seed: 42                      # Global random seed (ensures experiment reproducibility)

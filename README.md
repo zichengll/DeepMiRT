@@ -13,13 +13,13 @@
   </p>
 </p>
 
-DeepMiRT predicts miRNA-target interactions using [RNA-FM](https://github.com/ml4bio/RNA-FM) embeddings and cross-attention, ranking **#1 on eCLIP benchmarks** among 12 methods.
+DeepMiRT predicts miRNA-target interactions using [RNA-FM](https://github.com/ml4bio/RNA-FM) embeddings and cross-attention, ranking **#1 on eCLIP benchmarks** among 12 methods in both AUROC and APS (average precision).
 
 ---
 
 ## Why DeepMiRT?
 
-Existing miRNA target prediction tools rely on hand-crafted thermodynamic rules or shallow sequence features, struggling to capture the full complexity of miRNA-target recognition. DeepMiRT addresses this by leveraging **RNA-FM**, a foundation model pre-trained on 23 million non-coding RNAs, as a shared encoder for both miRNA and target. A **cross-attention** mechanism then lets the target "read" the miRNA to learn complementarity patterns beyond simple seed matching. The result: state-of-the-art performance, ranking **#1 among 12 methods** on eCLIP benchmarks and achieving **0.96 AUROC** on a held-out test set of 813K samples.
+Existing miRNA target prediction tools rely on hand-crafted thermodynamic rules or shallow sequence features, struggling to capture the full complexity of miRNA-target recognition. DeepMiRT addresses this by leveraging **RNA-FM**, a foundation model pre-trained on 23 million non-coding RNAs, as a shared encoder for both miRNA and target. A **cross-attention** mechanism then lets the target "read" the miRNA to learn complementarity patterns beyond simple seed matching. The result: state-of-the-art performance, ranking **#1 among 12 methods** on eCLIP benchmarks (APS up to 0.7947) and achieving **0.96 AUROC** on a held-out test set of 813K samples.
 
 ## Key Results at a Glance
 
@@ -70,7 +70,7 @@ graph LR
     style I fill:#27ae60,color:#fff
 ```
 
-The model uses a **shared RNA-FM encoder** for both sequences, ensuring they lie in the same representation space. Cross-attention lets the target "read" the miRNA to capture complementarity and binding signals. Two-phase training first optimizes the classifier (frozen backbone), then fine-tunes the top 3 RNA-FM layers.
+The model uses a **shared RNA-FM encoder** for both sequences, ensuring they lie in the same representation space. Cross-attention lets the target "read" the miRNA to capture complementarity and binding signals. The RNA-FM backbone is kept frozen during training; only the cross-attention and classifier head are optimized (~4M trainable parameters out of 103M total).
 
 <details>
 <summary>ASCII diagram (fallback)</summary>
@@ -248,27 +248,27 @@ The demo supports single-pair prediction with pre-loaded examples and batch CSV 
 
 ### Standard Benchmark: miRBench eCLIP Datasets
 
-DeepMiRT ranks **#1** on both eCLIP benchmark datasets from miRBench (fair comparison -- all methods evaluated on the same held-out data by the benchmark authors):
+DeepMiRT ranks **#1** on both eCLIP benchmark datasets from miRBench in both APS (average precision, miRBench's primary metric) and AUROC. All methods evaluated on identical held-out data using the miRBench framework:
 
-| Method | Type | eCLIP Klimentova 2022 | eCLIP Manakov 2022 |
-|--------|------|-----------------------|--------------------|
-| **DeepMiRT (ours)** | **DL + LM** | **0.7511** | **0.7543** |
-| TargetScanCnn | CNN | 0.7138 | 0.7205 |
-| miRBind | DL | 0.7004 | -- |
-| miRNA_CNN | CNN | 0.6981 | -- |
-| RNACofold | Thermo. | -- | 0.6841 |
+| Method | Type | Klimentova APS | Klimentova AUROC | Manakov APS | Manakov AUROC |
+|--------|------|---------------|-----------------|------------|--------------|
+| **DeepMiRT (ours)** | **DL + LM** | **0.7850** | **0.7511** | **0.7947** | **0.7524** |
+| TargetScanCnn | CNN | 0.7447 | 0.7138 | 0.7735 | 0.7222 |
+| miRBind | DL | 0.7530 | 0.7004 | 0.7090 | 0.6728 |
+| miRNA_CNN | CNN | 0.7392 | 0.6981 | 0.7113 | 0.6842 |
+| RNACofold | Thermo. | 0.6685 | 0.6740 | 0.6280 | 0.6299 |
 
 ### Standard Benchmark: miRBench CLASH Dataset
 
 On the CLASH dataset, DeepMiRT ranks #5 (honest reporting -- CLASH captures different biology):
 
-| Method | AUROC |
-|--------|-------|
-| miRBind | 0.7649 |
-| miRNA_CNN | 0.7614 |
-| InteractionAwareModel | 0.7510 |
-| RNACofold | 0.7455 |
-| **DeepMiRT (ours)** | **0.6952** |
+| Method | APS | AUROC |
+|--------|-----|-------|
+| miRBind | 0.7964 | 0.7649 |
+| miRNA_CNN | 0.7726 | 0.7614 |
+| InteractionAwareModel | 0.7414 | 0.7510 |
+| RNACofold | 0.7394 | 0.7455 |
+| **DeepMiRT (ours)** | **0.7260** | **0.6952** |
 
 ### Our Test Set (813K samples)
 
@@ -313,16 +313,12 @@ On the CLASH dataset, DeepMiRT ranks #5 (honest reporting -- CLASH captures diff
 ## Training
 
 ```bash
-# Phase 1: Frozen backbone
+# Train with frozen backbone (recommended — this is how the released model was trained)
 python deepmirt/training/train.py \
     --config deepmirt/configs/default.yaml
-
-# Phase 2: Unfreeze top 3 layers (edit config or use overrides)
-python deepmirt/training/train.py \
-    --config deepmirt/configs/default.yaml \
-    --override unfreezing.enabled=true model.freeze_backbone=false \
-    --ckpt checkpoints/best-phase1.ckpt
 ```
+
+The config also supports experimental progressive unfreezing of the top RNA-FM layers (`unfreezing.enabled: true`), but in our experiments this did not improve performance over the frozen-backbone baseline.
 
 See `deepmirt/configs/default.yaml` for all configurable hyperparameters.
 

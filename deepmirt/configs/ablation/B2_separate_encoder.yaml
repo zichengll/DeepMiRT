@@ -1,0 +1,10 @@
+# B2: Separate encoders for miRNA and target (no weight sharing)
+_base_: ../default.yaml
+
+ablation:
+  interaction: "cross_attention"
+  pooling: "mean"
+  encoder: "separate"
+  random_init: false
+  classifier: "mlp"
+  uniform_lr: false

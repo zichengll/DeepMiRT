@@ -1,0 +1,12 @@
+# B4: Full fine-tuning from epoch 0 (no staged unfreezing)
+# Unfreeze entire backbone from the start
+_base_: ../default.yaml
+
+model:
+  freeze_backbone: false
+
+unfreezing:
+  enabled: false
+
+trainer:
+  strategy: ddp_find_unused_parameters_true

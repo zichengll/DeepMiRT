@@ -39,7 +39,6 @@ import os
 import fm
 import pytorch_lightning as pl
 import torch
-from torch.nn.utils.rnn import pad_sequence
 from torch.utils.data import DataLoader
 
 from deepmirt.data_module.dataset import MiRNATargetDataset
@@ -194,35 +193,16 @@ class MiRNATargetDataModule(pl.LightningDataModule):
                 - 'attention_mask_mirna':  (batch_size, max_mirna_len) LongTensor
                 - 'attention_mask_target': (batch_size, 42) LongTensor
         """
-        # ── 1. Collect individual fields ──
-        mirna_list = [sample["mirna_tokens"] for sample in batch]
-        target_list = [sample["target_tokens"] for sample in batch]
-        label_list = [sample["label"] for sample in batch]
+        # ── 1. Stack pre-tokenized tensors (all fixed-length now) ──
+        mirna_stacked = torch.stack([s["mirna_tokens"] for s in batch])
+        target_stacked = torch.stack([s["target_tokens"] for s in batch])
+        labels = torch.stack([s["label"] for s in batch])
 
-        # ── 2. Pad miRNA sequences ──
-        # pad_sequence converts list of 1D tensors → 2D tensor (batch, max_len)
-        # batch_first=True ensures the batch dimension comes first
-        # padding_value=1 is RNA-FM's <pad> token ID
-        mirna_padded = pad_sequence(
-            mirna_list, batch_first=True, padding_value=self._padding_idx
-        )
+        # ── 2. Generate attention masks ──
+        attention_mask_mirna = (mirna_stacked != self._padding_idx).long()
+        attention_mask_target = (target_stacked != self._padding_idx).long()
 
-        # ── 3. Stack target sequences (fixed 42 tokens, no padding needed) ──
-        target_stacked = torch.stack(target_list)
-
-        # ── 4. Stack labels ──
-        labels = torch.stack(label_list)
-
-        # ── 5. Generate attention masks ──
-        # miRNA mask: non-padding positions = 1, padding positions = 0
-        attention_mask_mirna = (mirna_padded != self._padding_idx).long()
-
-        # target mask: all positions are real tokens, so all 1s
-        # Because target is fixed at 40nt with no padding, every position is valid
-        attention_mask_target = torch.ones_like(target_stacked, dtype=torch.long)
-
-        # ── 6. Collect metadata (for stratified analysis during evaluation) ──
-        # Each metadata field is collected as list[str], kept on CPU
+        # ── 3. Collect metadata ──
         metadata_keys = batch[0].get("metadata", {}).keys()
         metadata = {
             key: [sample["metadata"][key] for sample in batch]
@@ -230,10 +210,10 @@ class MiRNATargetDataModule(pl.LightningDataModule):
         } if metadata_keys else {}
 
         return {
-            "mirna_tokens": mirna_padded,             # (B, max_mirna_len)
-            "target_tokens": target_stacked,          # (B, 42)
-            "labels": labels,                         # (B,)
-            "attention_mask_mirna": attention_mask_mirna,    # (B, max_mirna_len)
-            "attention_mask_target": attention_mask_target,  # (B, 42)
-            "metadata": metadata,                     # dict[str, list[str]]
+            "mirna_tokens": mirna_stacked,                   # (B, max_mirna_len+2)
+            "target_tokens": target_stacked,                 # (B, 42)
+            "labels": labels,                                # (B,)
+            "attention_mask_mirna": attention_mask_mirna,     # (B, max_mirna_len+2)
+            "attention_mask_target": attention_mask_target,   # (B, 42)
+            "metadata": metadata,
         }

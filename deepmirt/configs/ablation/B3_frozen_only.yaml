@@ -1,0 +1,9 @@
+# B3: Frozen backbone only (no Phase 2 fine-tuning)
+# Train with frozen RNA-FM backbone throughout
+_base_: ../default.yaml
+
+model:
+  freeze_backbone: true
+
+unfreezing:
+  enabled: false

@@ -132,12 +132,18 @@ class MiRNATargetLitModule(pl.LightningModule):
 
         # ── Extract model parameters from config and instantiate ──
         model_cfg = config["model"]
+        ablation_cfg = config.get("ablation", {})
         self.model = MiRNATargetModel(
             freeze_backbone=model_cfg.get("freeze_backbone", True),
             cross_attn_heads=model_cfg.get("cross_attn_heads", 8),
             cross_attn_layers=model_cfg.get("cross_attn_layers", 2),
             classifier_hidden=model_cfg.get("classifier_hidden", [256, 64]),
             dropout=model_cfg.get("dropout", 0.3),
+            ablation_interaction=ablation_cfg.get("interaction", "cross_attention"),
+            ablation_pooling=ablation_cfg.get("pooling", "mean"),
+            ablation_encoder=ablation_cfg.get("encoder", "shared"),
+            ablation_random_init=ablation_cfg.get("random_init", False),
+            ablation_classifier=ablation_cfg.get("classifier", "mlp"),
         )
 
         # ── Loss function ──
@@ -338,26 +344,42 @@ class MiRNATargetLitModule(pl.LightningModule):
         weight_decay = training_cfg.get("weight_decay", 1e-5)
         scheduler_type = training_cfg.get("scheduler", "cosine")
         max_epochs = training_cfg.get("max_epochs", 30)
+        ablation_cfg = self.config.get("ablation", {})
+        uniform_lr = ablation_cfg.get("uniform_lr", False)
 
-        # Design decision: 3 parameter groups correspond to the model's 3 semantic modules;
-        # learning rates decrease from downstream to upstream (farther from the task = smaller LR).
+        # Build parameter groups based on model configuration
+        backbone_lr = base_lr if uniform_lr else base_lr * 0.01
+        cross_attn_lr = base_lr if uniform_lr else base_lr * 0.1
+
         param_groups = [
             {
                 "params": list(self.model.encoder.parameters()),
-                "lr": base_lr * 0.01,
+                "lr": backbone_lr,
                 "name": "backbone",
             },
-            {
-                "params": list(self.model.cross_attention.parameters()),
-                "lr": base_lr * 0.1,
-                "name": "cross_attention",
-            },
-            {
-                "params": list(self.model.classifier.parameters()),
-                "lr": base_lr,
-                "name": "classifier",
-            },
         ]
+
+        # Ablation B2: separate target encoder
+        if self.model.encoder_target is not None:
+            param_groups.append({
+                "params": list(self.model.encoder_target.parameters()),
+                "lr": backbone_lr,
+                "name": "backbone_target",
+            })
+
+        # Cross-attention may be None in concat ablation (A1)
+        if self.model.cross_attention is not None:
+            param_groups.append({
+                "params": list(self.model.cross_attention.parameters()),
+                "lr": cross_attn_lr,
+                "name": "cross_attention",
+            })
+
+        param_groups.append({
+            "params": list(self.model.classifier.parameters()),
+            "lr": base_lr,
+            "name": "classifier",
+        })
 
         optimizer = torch.optim.AdamW(param_groups, weight_decay=weight_decay)
 

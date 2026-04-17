@@ -1,0 +1,10 @@
+# A4: Reversed Query-Key direction (miRNA=Q, target=KV)
+_base_: ../default.yaml
+
+ablation:
+  interaction: "reverse_qk"
+  pooling: "mean"
+  encoder: "shared"
+  random_init: false
+  classifier: "mlp"
+  uniform_lr: false

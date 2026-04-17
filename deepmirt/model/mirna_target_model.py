@@ -51,25 +51,50 @@ class MiRNATargetModel(nn.Module):
         cross_attn_layers: int = 2,
         classifier_hidden: Sequence[int] | None = None,
         dropout: float = 0.3,
+        # Ablation parameters
+        ablation_interaction: str = "cross_attention",
+        ablation_pooling: str = "mean",
+        ablation_encoder: str = "shared",
+        ablation_random_init: bool = False,
+        ablation_classifier: str = "mlp",
     ) -> None:
         super().__init__()
         hidden_dims = list(classifier_hidden) if classifier_hidden is not None else [256, 64]
+        self.ablation_interaction = ablation_interaction
+        self.ablation_pooling = ablation_pooling
 
-        self.encoder = RNAFMEncoder(freeze_backbone=freeze_backbone)
+        self.encoder = RNAFMEncoder(
+            freeze_backbone=freeze_backbone,
+            random_init=ablation_random_init,
+        )
         embed_dim = self.encoder.embed_dim
 
-        # Design decision: the interaction layer uses a smaller dropout (~1/3 of main dropout)
-        # to preserve attention signals while still providing basic regularization.
-        self.cross_attention = CrossAttentionBlock(
-            embed_dim=embed_dim,
-            num_heads=cross_attn_heads,
-            dropout=dropout * 0.33,
-            num_layers=cross_attn_layers,
-        )
+        # Ablation B2: separate encoder for target
+        self.encoder_target = None
+        if ablation_encoder == "separate":
+            self.encoder_target = RNAFMEncoder(
+                freeze_backbone=freeze_backbone,
+                random_init=ablation_random_init,
+            )
+
+        # Ablation A1: no cross-attention (concat mode) — skip building the module
+        if ablation_interaction == "concat":
+            self.cross_attention = None
+            classifier_input_dim = embed_dim * 2
+        else:
+            self.cross_attention = CrossAttentionBlock(
+                embed_dim=embed_dim,
+                num_heads=cross_attn_heads,
+                dropout=dropout * 0.33,
+                num_layers=cross_attn_layers,
+            )
+            classifier_input_dim = embed_dim
+
         self.classifier = MLPClassifier(
-            input_dim=embed_dim,
+            input_dim=classifier_input_dim,
             hidden_dims=hidden_dims,
             dropout=dropout,
+            linear_only=(ablation_classifier == "linear"),
         )
 
     def forward(
@@ -80,48 +105,80 @@ class MiRNATargetModel(nn.Module):
         attention_mask_target: Tensor | None = None,
     ) -> Tensor:
         """
-        Forward pass (step by step):
-        1) miRNA encoding: `(B, M_tok)` -> `(B, M, D)`
-        2) target encoding: `(B, T_tok)` -> `(B, T, D)`
-        3) Build key_padding_mask: attention_mask(1=real, 0=padding) -> (==0)
-        4) Cross-Attention: target(Q) queries miRNA(K/V) -> `(B, T, D)`
-        5) Masked mean pooling over target sequence -> `(B, D)`
-        6) Classifier head outputs logits -> `(B, 1)`
+        Forward pass with ablation-aware branching.
+
+        Default path: encode -> cross-attention (target=Q, miRNA=KV) -> mean pool -> MLP
+        Ablation variants modify interaction, pooling, or encoding steps.
         """
-        # Step 1: Shared encoder processes miRNA (shared weights)
+        # Step 1-2: Encode miRNA and target
         mirna_emb = self.encoder(mirna_tokens)
+        target_encoder = self.encoder_target if self.encoder_target is not None else self.encoder
+        target_emb = target_encoder(target_tokens)
 
-        # Step 2: Same encoder processes target to ensure consistent representation space
-        target_emb = self.encoder(target_tokens)
+        # --- Ablation A1: concat mode (no cross-attention) ---
+        if self.ablation_interaction == "concat":
+            mirna_pooled = self._masked_mean_pool(mirna_emb, attention_mask_mirna)
+            target_pooled = self._masked_mean_pool(target_emb, attention_mask_target)
+            pooled = torch.cat([mirna_pooled, target_pooled], dim=-1)
+            return self.classifier(pooled)
 
-        # Step 3: PyTorch MHA key_padding_mask convention: True=ignore.
-        key_padding_mask = None
-        if attention_mask_mirna is not None:
-            key_padding_mask = attention_mask_mirna == 0
-
-        # Step 4: target as Query, miRNA as Key/Value.
-        cross_out = self.cross_attention(
-            query=target_emb,
-            key_value=mirna_emb,
-            key_padding_mask=key_padding_mask,
-        )
-
-        # Step 5: Masked mean pooling over target sequence to obtain a fixed-length representation.
-        if attention_mask_target is None:
-            pooling_mask = torch.ones(
-                cross_out.size(0),
-                cross_out.size(1),
-                1,
-                device=cross_out.device,
-                dtype=cross_out.dtype,
+        # Step 3: Build key_padding_mask (True=ignore for PyTorch MHA)
+        if self.ablation_interaction == "reverse_qk":
+            # Ablation A4: miRNA=Q, target=KV (reversed)
+            key_padding_mask = None
+            if attention_mask_target is not None:
+                key_padding_mask = attention_mask_target == 0
+            cross_out = self.cross_attention(
+                query=mirna_emb,
+                key_value=target_emb,
+                key_padding_mask=key_padding_mask,
             )
+            # Pool over miRNA dimension (since miRNA is the query)
+            pooled = self._pool(cross_out, attention_mask_mirna)
         else:
-            pooling_mask = attention_mask_target.to(dtype=cross_out.dtype).unsqueeze(-1)
+            # Default: target=Q, miRNA=KV
+            key_padding_mask = None
+            if attention_mask_mirna is not None:
+                key_padding_mask = attention_mask_mirna == 0
+            cross_out = self.cross_attention(
+                query=target_emb,
+                key_value=mirna_emb,
+                key_padding_mask=key_padding_mask,
+            )
+            # Pool over target dimension
+            pooled = self._pool(cross_out, attention_mask_target)
 
-        summed = (cross_out * pooling_mask).sum(dim=1)
-        denom = pooling_mask.sum(dim=1).clamp_min(1e-6)
-        pooled = summed / denom
+        return self.classifier(pooled)
 
-        # Step 6: Output raw logits without applying sigmoid.
-        logits = self.classifier(pooled)
-        return logits
+    def _pool(self, hidden: Tensor, attention_mask: Tensor | None) -> Tensor:
+        """Apply the configured pooling strategy."""
+        if self.ablation_pooling == "max":
+            return self._masked_max_pool(hidden, attention_mask)
+        elif self.ablation_pooling == "cls":
+            return hidden[:, 0, :]
+        else:
+            return self._masked_mean_pool(hidden, attention_mask)
+
+    @staticmethod
+    def _masked_mean_pool(hidden: Tensor, attention_mask: Tensor | None) -> Tensor:
+        """Masked mean pooling over the sequence dimension."""
+        if attention_mask is None:
+            mask = torch.ones(hidden.size(0), hidden.size(1), 1,
+                              device=hidden.device, dtype=hidden.dtype)
+        else:
+            mask = attention_mask.to(dtype=hidden.dtype).unsqueeze(-1)
+        summed = (hidden * mask).sum(dim=1)
+        denom = mask.sum(dim=1).clamp_min(1e-6)
+        return summed / denom
+
+    @staticmethod
+    def _masked_max_pool(hidden: Tensor, attention_mask: Tensor | None) -> Tensor:
+        """Masked max pooling over the sequence dimension."""
+        if attention_mask is None:
+            mask = torch.ones(hidden.size(0), hidden.size(1), 1,
+                              device=hidden.device, dtype=hidden.dtype)
+        else:
+            mask = attention_mask.to(dtype=hidden.dtype).unsqueeze(-1)
+        # Set padding positions to large negative value before max
+        masked = hidden * mask + (1 - mask) * (-1e9)
+        return masked.max(dim=1)[0]

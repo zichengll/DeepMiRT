@@ -1,0 +1,10 @@
+# C2: Max pooling instead of mean pooling
+_base_: ../default.yaml
+
+ablation:
+  interaction: "cross_attention"
+  pooling: "max"
+  encoder: "shared"
+  random_init: false
+  classifier: "mlp"
+  uniform_lr: false

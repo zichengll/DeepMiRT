@@ -37,17 +37,31 @@ from torch import Tensor, nn
 class RNAFMEncoder(nn.Module):
     """Lightweight wrapper around RNA-FM providing forward encoding, freezing, and staged unfreezing."""
 
-    def __init__(self, freeze_backbone: bool = True) -> None:
+    def __init__(self, freeze_backbone: bool = True, random_init: bool = False) -> None:
         super().__init__()
         self.model, self.alphabet = fm.pretrained.rna_fm_t12()
         self.num_layers = len(self.model.layers)
         self.embed_dim = self._infer_embed_dim(default=640)
 
-        # Design decision: freeze backbone by default to first stabilize training of the
-        # upper interaction module and classifier head, avoiding catastrophic forgetting
-        # from full fine-tuning on small datasets.
+        # Ablation B1: re-initialize all transformer weights randomly (discard pretrained knowledge)
+        if random_init:
+            self._reset_parameters()
+
         if freeze_backbone:
             self.freeze()
+
+    def _reset_parameters(self) -> None:
+        """Re-initialize all transformer layer parameters using Xavier/Kaiming defaults."""
+        for module in self.model.modules():
+            if isinstance(module, nn.Linear):
+                nn.init.xavier_uniform_(module.weight)
+                if module.bias is not None:
+                    nn.init.zeros_(module.bias)
+            elif isinstance(module, nn.Embedding):
+                nn.init.normal_(module.weight, mean=0, std=0.02)
+            elif isinstance(module, nn.LayerNorm):
+                nn.init.ones_(module.weight)
+                nn.init.zeros_(module.bias)
 
     def _infer_embed_dim(self, default: int = 640) -> int:
         """Try to infer the embedding dimension from the RNA-FM model; fall back to default on failure."""

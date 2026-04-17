@@ -98,9 +98,22 @@ from deepmirt.training.callbacks import StagedUnfreezeCallback
 from deepmirt.training.lightning_module import MiRNATargetLitModule
 
 
+def _deep_merge(base: dict, override: dict) -> dict:
+    """Recursively merge override dict into base dict (override wins)."""
+    merged = base.copy()
+    for key, value in override.items():
+        if key in merged and isinstance(merged[key], dict) and isinstance(value, dict):
+            merged[key] = _deep_merge(merged[key], value)
+        else:
+            merged[key] = value
+    return merged
+
+
 def load_config(config_path: str) -> dict:
     """
-    Load a YAML configuration file.
+    Load a YAML configuration file with optional base config inheritance.
+
+    Supports `_base_: ../default.yaml` for ablation configs to inherit from a base config.
 
     Args:
         config_path: Path to the YAML file
@@ -112,7 +125,7 @@ def load_config(config_path: str) -> dict:
         FileNotFoundError: Configuration file does not exist
         yaml.YAMLError: YAML format error
     """
-    config_file = Path(config_path)
+    config_file = Path(config_path).resolve()
     if not config_file.exists():
         raise FileNotFoundError(f"Configuration file not found: {config_path}")
 
@@ -121,6 +134,12 @@ def load_config(config_path: str) -> dict:
 
     if config is None:
         raise ValueError(f"Configuration file is empty: {config_path}")
+
+    # Handle _base_ inheritance: load base config and merge overrides
+    if "_base_" in config:
+        base_path = (config_file.parent / config.pop("_base_")).resolve()
+        base_config = load_config(str(base_path))
+        config = _deep_merge(base_config, config)
 
     return config
 
@@ -169,8 +188,8 @@ def apply_overrides(config: dict, overrides: list[str]) -> dict:
             # Try integer
             elif value_str.isdigit() or (value_str.startswith("-") and value_str[1:].isdigit()):
                 d[final_key] = int(value_str)
-            # Try float
-            elif "." in value_str or "e" in value_str.lower():
+            # Try float (but not if it looks like a path)
+            elif ("." in value_str or "e" in value_str.lower()) and "/" not in value_str:
                 d[final_key] = float(value_str)
             # Default to string
             else:

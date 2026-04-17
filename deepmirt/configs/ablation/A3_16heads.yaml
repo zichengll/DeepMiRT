@@ -1,0 +1,5 @@
+# A3b: Cross-Attention with 16 heads (default: 8)
+_base_: ../default.yaml
+
+model:
+  cross_attn_heads: 16

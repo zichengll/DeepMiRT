@@ -1,0 +1,11 @@
+# A1: No Cross-Attention — concat baseline
+# Removes cross-attention, mean-pools miRNA and target separately, then concatenates
+_base_: ../default.yaml
+
+ablation:
+  interaction: "concat"
+  pooling: "mean"
+  encoder: "shared"
+  random_init: false
+  classifier: "mlp"
+  uniform_lr: false

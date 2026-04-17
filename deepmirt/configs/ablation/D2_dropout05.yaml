@@ -1,0 +1,5 @@
+# D2b: Dropout 0.5 (default: 0.3)
+_base_: ../default.yaml
+
+model:
+  dropout: 0.5

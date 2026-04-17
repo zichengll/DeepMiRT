@@ -1,0 +1,11 @@
+# C1: Linear classification head (no MLP hidden layers)
+# Replaces 640->256->64->1 MLP with a single 640->1 linear layer
+_base_: ../default.yaml
+
+ablation:
+  interaction: "cross_attention"
+  pooling: "mean"
+  encoder: "shared"
+  random_init: false
+  classifier: "linear"
+  uniform_lr: false
