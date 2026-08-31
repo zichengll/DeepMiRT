@@ -9,25 +9,26 @@
     <a href="https://huggingface.co/spaces/liuliu2333/deepmirt"><img src="https://img.shields.io/badge/%F0%9F%A4%97-Demo-yellow" alt="HF Demo"></a>
     <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-green" alt="License: MIT"></a>
     <a href="https://www.python.org/"><img src="https://img.shields.io/badge/python-3.9%2B-blue" alt="Python 3.9+"></a>
-    <img src="https://img.shields.io/badge/AUROC-0.96-brightgreen" alt="AUROC 0.96">
+    <img src="https://img.shields.io/badge/internal_AUROC-0.96-brightgreen" alt="Internal AUROC 0.96">
+    <img src="https://img.shields.io/badge/eCLIP_AUROC-0.75-blue" alt="eCLIP AUROC 0.75">
   </p>
 </p>
 
-DeepMiRT predicts miRNA-target interactions using [RNA-FM](https://github.com/ml4bio/RNA-FM) embeddings and cross-attention, ranking **#1 on eCLIP benchmarks** among 12 methods in both AUROC and APS (average precision).
+DeepMiRT predicts miRNA-target interactions using [RNA-FM](https://github.com/ml4bio/RNA-FM) embeddings and cross-attention. It ranks **#1 on eCLIP benchmarks** among 12 methods in both AUROC (~0.75) and APS (average precision), and reaches **0.96 AUROC** on a held-out test set of 813K samples.
 
 ---
 
 ## Why DeepMiRT?
 
-Existing miRNA target prediction tools rely on hand-crafted thermodynamic rules or shallow sequence features, struggling to capture the full complexity of miRNA-target recognition. DeepMiRT addresses this by leveraging **RNA-FM**, a foundation model pre-trained on 23 million non-coding RNAs, as a shared encoder for both miRNA and target. A **cross-attention** mechanism then lets the target "read" the miRNA to learn complementarity patterns beyond simple seed matching. The result: state-of-the-art performance, ranking **#1 among 12 methods** on eCLIP benchmarks (APS up to 0.7947) and achieving **0.96 AUROC** on a held-out test set of 813K samples.
+Existing miRNA target prediction tools rely on hand-crafted thermodynamic rules or shallow sequence features, struggling to capture the full complexity of miRNA-target recognition. DeepMiRT addresses this by leveraging **RNA-FM**, a foundation model pre-trained on 23 million non-coding RNAs, as a shared encoder for both miRNA and target. A **cross-attention** mechanism then lets the target "read" the miRNA to learn complementarity patterns beyond simple seed matching. The result: state-of-the-art performance, ranking **#1 among 12 methods** on eCLIP benchmarks (AUROC 0.7511 / 0.7524; APS up to 0.7947) and achieving **0.96 AUROC** on a held-out test set of 813K samples.
 
 ## Key Results at a Glance
 
 <table>
 <tr>
-<td align="center"><strong>0.96</strong><br>AUROC</td>
-<td align="center"><strong>#1 / 12</strong><br>eCLIP Benchmark</td>
-<td align="center"><strong>813K</strong><br>Test Samples</td>
+<td align="center"><strong>0.96</strong><br>Internal AUROC<br>(813K test set)</td>
+<td align="center"><strong>#1 / 12</strong><br>eCLIP Benchmark<br>(AUROC ~0.75)</td>
+<td align="center"><strong>0.7947</strong><br>Best eCLIP APS<br>(Manakov)</td>
 <td align="center"><strong>3-line</strong><br>Python API</td>
 </tr>
 </table>
@@ -295,11 +296,13 @@ On the CLASH dataset, DeepMiRT ranks #5 (honest reporting -- CLASH captures diff
 | miRBind | DL | 0.7641 | 0.7446 | 0.7012 | 0.3723 | 0.7659 | 0.6021 |
 | miRNA_CNN | CNN | 0.7299 | 0.7200 | 0.6555 | 0.3543 | 0.6296 | 0.7229 |
 | RNAhybrid | MFE | 0.7230 | 0.7079 | 0.6673 | 0.3406 | 0.6582 | 0.6823 |
-| Seed8mer | Rule | 0.6624 | 0.6785 | 0.4534 | 0.4254 | 0.2963 | 0.9938 |
-| Seed6merBulge | Rule | 0.6455 | 0.6313 | 0.6050 | 0.2878 | 0.5718 | 0.7147 |
-| CnnMirTarget | CNN | 0.5830 | 0.5793 | 0.5362 | 0.0910 | 0.5025 | 0.5879 |
-| TargetNet | DL | 0.4972 | 0.4980 | 0.4712 | -0.0080 | 0.4583 | 0.5333 |
-| Random | -- | 0.5000 | 0.5005 | 0.4896 | -0.0014 | 0.4960 | 0.5026 |
+| Seed6merBulgeOrMismatch | Rule | 0.6974 | 0.6142 | 0.7423 | 0.4339 | 0.9101 | 0.4846 |
+| RNACofold | Thermo. | 0.6618 | 0.6262 | 0.6192 | 0.2417 | 0.6329 | 0.6088 |
+| InteractionAwareModel | DL + Attn | 0.6473 | 0.6145 | 0.6008 | 0.2189 | 0.6026 | 0.6164 |
+| Seed8mer | Rule | 0.5656 | 0.5519 | 0.2394 | 0.2581 | 0.1367 | 0.9945 |
+| Random | -- | 0.4998 | 0.4928 | 0.4880 | 0.0009 | 0.4826 | 0.5182 |
+| TargetNet | DL | 0.4743 | 0.4715 | 0.0214 | 0.0076 | 0.0109 | 0.9906 |
+| CnnMirTarget | CNN | 0.4260 | 0.4414 | 0.0029 | 0.0048 | 0.0015 | 0.9989 |
 
 </details>
 

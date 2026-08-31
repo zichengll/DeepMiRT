@@ -1,0 +1,16 @@
+config,seed,val_auroc
+baseline,42,0.950800
+baseline,123,0.950700
+baseline,456,0.951100
+baseline,789,0.951300
+baseline,2024,0.950600
+D1_uniform_lr,42,0.963700
+D1_uniform_lr,123,0.963800
+D1_uniform_lr,456,0.963500
+D1_uniform_lr,789,0.963700
+D1_uniform_lr,2024,0.963700
+A1_concat,42,0.898400
+A1_concat,123,0.898200
+A1_concat,456,0.898100
+A1_concat,789,0.898400
+A1_concat,2024,0.898500

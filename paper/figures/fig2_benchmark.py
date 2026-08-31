@@ -8,21 +8,23 @@ import numpy as np
 import pandas as pd
 
 # ── Paths ──
-TABLE_DIR = pathlib.Path(__file__).resolve().parents[2] / "evaluation_outputs" / "tables"
+# Use the same miRBench snapshot as paper/main.tex and paper/mirbench_aps/summary_aps.csv
+# (not evaluation_outputs/, whose Manakov numbers differ).
+TABLE_DIR = pathlib.Path(__file__).resolve().parents[1] / "mirbench_aps"
 OUT = pathlib.Path(__file__).resolve().parent / "fig2_benchmark.pdf"
 
 # ── Load data ──
 datasets = {
-    "CLASH\n(Hejret 2023)": "benchmark_AGO2_CLASH_Hejret2023.csv",
-    "eCLIP\n(Klimentova 2022)": "benchmark_AGO2_eCLIP_Klimentova2022.csv",
-    "eCLIP\n(Manakov 2022)": "benchmark_AGO2_eCLIP_Manakov2022.csv",
+    "CLASH\n(Hejret 2023)": "AGO2_CLASH_Hejret2023_results.csv",
+    "eCLIP\n(Klimentova 2022)": "AGO2_eCLIP_Klimentova2022_results.csv",
+    "eCLIP\n(Manakov 2022)": "AGO2_eCLIP_Manakov2022_results.csv",
 }
 
 # Top 8 methods to display (by mean AUROC across datasets)
 all_dfs = {}
 for label, fname in datasets.items():
     df = pd.read_csv(TABLE_DIR / fname)
-    df["Method"] = df["Method"].str.replace(r"_\w+\d{4}$", "", regex=True)
+    df["Method"] = df["Method"].str.replace(r"_[A-Za-z]+\d{4}$", "", regex=True)
     df["Method"] = df["Method"].replace("Ours (RNA-FM)", "DeepMiRT")
     all_dfs[label] = df.set_index("Method")["AUROC"]
 
